@@ -19,6 +19,9 @@
     "url": "https://github.com/cjaston/airlock/issues"
   },
   "homepage": "https://github.com/cjaston/airlock#readme",
+  "contributors": [
+    "OpenAI Codex (AI-assisted development)"
+  ],
   "publishConfig": {
     "access": "public"
   },

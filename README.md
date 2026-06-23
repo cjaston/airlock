@@ -194,6 +194,12 @@ node dist/index.js demo
 
 Requires Node 20+.
 
+## Acknowledgements
+
+Built by Chris Jaston with AI-assisted development from
+[OpenAI Codex](https://openai.com/codex/). Airlock is an independent open-source
+project and is not an official OpenAI product or endorsement.
+
 ## Roadmap
 
 - [x] npm + PyPI package existence/age/adoption/provenance checks
