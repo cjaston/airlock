@@ -1,0 +1,31 @@
+name: Airlock
+description: Run Airlock's agent-safety audit in GitHub Actions.
+
+inputs:
+  path:
+    description: Project path to audit.
+    required: false
+    default: "."
+  staged:
+    description: Scan staged git changes instead of unstaged changes.
+    required: false
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Build Airlock
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        npm ci
+        npm run build
+
+    - name: Run Airlock audit
+      shell: bash
+      run: |
+        if [ "${{ inputs.staged }}" = "true" ]; then
+          node "${{ github.action_path }}/dist/index.js" audit "${{ inputs.path }}" --staged
+        else
+          node "${{ github.action_path }}/dist/index.js" audit "${{ inputs.path }}"
+        fi

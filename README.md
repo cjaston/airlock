@@ -187,6 +187,25 @@ Creates `.airlock.json`:
 Policy files are discovered from the current directory upward, so a repo can
 carry its own allow/block rules.
 
+## GitHub Action
+
+Use Airlock in CI before merging agent-generated changes:
+
+```yaml
+name: Airlock
+
+on: [pull_request]
+
+jobs:
+  airlock:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cjaston/airlock@main
+        with:
+          path: "."
+```
+
 ## MCP Tools
 
 Airlock exposes these MCP tools:
