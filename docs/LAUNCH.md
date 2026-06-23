@@ -79,3 +79,19 @@ and cached locally. Secret scans never leave your machine.
 - Keep scope disciplined: do not turn it into a full SCA scanner.
 - Point people to `.airlock.json` for private packages.
 - Ship a patch release the same day if an install path is missed.
+
+## Publish Checklist
+
+Before launch:
+
+1. Create an npm automation token.
+2. Add it to GitHub repo secrets as `NPM_TOKEN`.
+3. Run `npm test && npm pack --dry-run`.
+4. Create a GitHub release or push a tag:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release workflow publishes `airlock-cli` to npm with provenance.
