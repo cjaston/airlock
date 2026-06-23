@@ -1,0 +1,38 @@
+name: False positive
+description: Airlock blocked or warned on something that should be allowed.
+title: "[false positive]: "
+labels: ["false-positive"]
+body:
+  - type: input
+    id: command
+    attributes:
+      label: Command or package
+      description: Paste the exact command or package name.
+      placeholder: npm install example
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Surface
+      options:
+        - CLI
+        - MCP
+        - Claude Code hook
+        - Shell shim
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Airlock output
+      render: console
+    validations:
+      required: true
+  - type: textarea
+    id: why-safe
+    attributes:
+      label: Why should this be allowed?
+    validations:
+      required: true

@@ -7,14 +7,29 @@
     "airlock": "dist/index.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "skills",
+    "docs"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cjaston/airlock.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cjaston/airlock/issues"
+  },
+  "homepage": "https://github.com/cjaston/airlock#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "build": "tsc",
     "dev": "tsc && node dist/index.js",
+    "demo": "npm run build && node dist/index.js demo",
+    "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test"
   },

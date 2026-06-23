@@ -6,7 +6,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import type { CommandVerdict, Decision, Ecosystem, Verdict } from "./core/types.js";
 import { vetPackage } from "./core/vet.js";
-import { vetCommand } from "./core/vet-command.js";
+import { vetCommandInContext } from "./core/vet-command.js";
 
 /**
  * Run Airlock as a Model Context Protocol server over stdio.
@@ -33,6 +33,11 @@ export async function runMcpServer(): Promise<void> {
               enum: ["npm", "pypi"],
               description: "Package registry (default: npm).",
             },
+            cwd: {
+              type: "string",
+              description:
+                "Optional project directory. Airlock uses this to find .airlock.json policy files.",
+            },
           },
           required: ["name"],
         },
@@ -45,6 +50,11 @@ export async function runMcpServer(): Promise<void> {
           type: "object" as const,
           properties: {
             command: { type: "string", description: "The exact shell command." },
+            cwd: {
+              type: "string",
+              description:
+                "Optional project directory. Airlock uses this to find .airlock.json policy files.",
+            },
           },
           required: ["command"],
         },
@@ -60,13 +70,15 @@ export async function runMcpServer(): Promise<void> {
         const pkg = String(args.name ?? "");
         if (!pkg) return toolError("Missing required argument: name");
         const ecosystem: Ecosystem = args.ecosystem === "pypi" ? "pypi" : "npm";
-        const v = await vetPackage(pkg, ecosystem);
+        const cwd = typeof args.cwd === "string" ? args.cwd : undefined;
+        const v = await vetPackage(pkg, ecosystem, { cwd });
         return toolResult(formatPackage(v), v.decision === "block");
       }
       if (name === "vet_command") {
         const command = String(args.command ?? "");
         if (!command) return toolError("Missing required argument: command");
-        const v = await vetCommand(command);
+        const cwd = typeof args.cwd === "string" ? args.cwd : undefined;
+        const v = await vetCommandInContext(command, { cwd });
         return toolResult(formatCommand(v), v.decision === "block");
       }
       return toolError(`Unknown tool: ${name}`);

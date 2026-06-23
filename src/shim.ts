@@ -1,25 +1,31 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { Verdict } from "./core/types.js";
 import { extractInstallTargets } from "./core/parse-command.js";
 import { vetPackage } from "./core/vet.js";
+import { findOnPath, selfCommand, shellCommand, SHIM_DIR } from "./runtime.js";
 
-const SHIM_DIR = path.join(os.homedir(), ".airlock", "shims");
-const SHIMMED_TOOLS = ["npm", "pnpm", "yarn", "bun", "pip", "pip3", "uv", "poetry"];
+const SHIMMED_TOOLS = [
+  "npm",
+  "npx",
+  "pnpm",
+  "yarn",
+  "bun",
+  "bunx",
+  "pip",
+  "pip3",
+  "pipx",
+  "uv",
+  "uvx",
+  "poetry",
+];
 
 const RESET = "\x1b[0m";
 const RED = "\x1b[41m\x1b[97m\x1b[1m";
 const YELLOW = "\x1b[43m\x1b[30m\x1b[1m";
 const FG_RED = "\x1b[31m";
 const FG_YELLOW = "\x1b[33m";
-
-/** Path to the compiled CLI entry (dist/index.js). */
-function entryPath(): string {
-  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "index.js");
-}
 
 /**
  * Invoked when a PATH shim is called (e.g. user/agent runs `npm install x`).
@@ -68,28 +74,16 @@ function printShimVerdict(v: Verdict, level: "block" | "warn"): void {
 
 /** Resolve the real executable for a tool, skipping Airlock's own shim dir. */
 function findRealBinary(tool: string): string | null {
-  const dirs = (process.env.PATH ?? "").split(path.delimiter);
-  for (const d of dirs) {
-    if (!d || path.resolve(d) === path.resolve(SHIM_DIR)) continue;
-    const candidate = path.join(d, tool);
-    try {
-      fs.accessSync(candidate, fs.constants.X_OK);
-      return candidate;
-    } catch {
-      // not here; keep looking
-    }
-  }
-  return null;
+  return findOnPath(tool, [SHIM_DIR]);
 }
 
 /** Install PATH shims for every supported install tool. */
 export function installShims(): string[] {
   fs.mkdirSync(SHIM_DIR, { recursive: true });
-  const node = process.execPath;
-  const entry = entryPath();
+  const self = selfCommand(["shim"]);
   for (const tool of SHIMMED_TOOLS) {
     const file = path.join(SHIM_DIR, tool);
-    const script = `#!/bin/sh\nexec ${shq(node)} ${shq(entry)} shim ${tool} "$@"\n`;
+    const script = `#!/bin/sh\nexec ${shellCommand(self)} ${tool} "$@"\n`;
     fs.writeFileSync(file, script);
     fs.chmodSync(file, 0o755);
   }
@@ -110,6 +104,11 @@ export async function runGuard(args: string[]): Promise<number> {
     for (const line of installShims()) console.log(line);
     return 0;
   }
+  if (sub === "uninstall") {
+    fs.rmSync(SHIM_DIR, { recursive: true, force: true });
+    console.log(`Removed ${SHIM_DIR}`);
+    return 0;
+  }
   if (sub === "path") {
     console.log(SHIM_DIR);
     return 0;
@@ -125,11 +124,6 @@ export async function runGuard(args: string[]): Promise<number> {
     else if (!onPath) console.log(`add to PATH: export PATH="${SHIM_DIR}:$PATH"`);
     return 0;
   }
-  console.error("usage: airlock guard <install|status|path>");
+  console.error("usage: airlock guard <install|uninstall|status|path>");
   return 2;
-}
-
-/** Minimal POSIX shell-quote for embedding paths in the shim script. */
-function shq(s: string): string {
-  return `'${s.replace(/'/g, `'\\''`)}'`;
 }

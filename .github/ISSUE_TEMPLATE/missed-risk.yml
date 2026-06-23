@@ -1,0 +1,35 @@
+name: Missed risk
+description: Airlock allowed something that should be blocked or warned on.
+title: "[missed risk]: "
+labels: ["missed-risk"]
+body:
+  - type: input
+    id: command
+    attributes:
+      label: Command or package
+      description: Paste the exact command or package name.
+      placeholder: npx suspicious-package
+    validations:
+      required: true
+  - type: dropdown
+    id: expected
+    attributes:
+      label: Expected verdict
+      options:
+        - BLOCK
+        - WARN
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Airlock output
+      render: console
+    validations:
+      required: true
+  - type: textarea
+    id: risk
+    attributes:
+      label: Why is this risky?
+    validations:
+      required: true

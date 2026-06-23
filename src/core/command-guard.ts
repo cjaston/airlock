@@ -84,6 +84,13 @@ const RULES: Rule[] = [
     test: /\b(curl|wget)\b[^|]*\|\s*(sudo\s+)?(sh|bash|zsh|python3?)\b/,
     message: "Piping a downloaded script straight into a shell runs unvetted remote code.",
   },
+  {
+    code: "remote_exec_package",
+    level: "warn",
+    test: /\b(npx|bunx|uvx)\b[^|;&]*(https?:\/\/|git\+|github:)|\b(npm\s+(exec|x)|pnpm\s+dlx|yarn\s+dlx|bun\s+(x|dlx)|pipx\s+run)\b[^|;&]*(https?:\/\/|git\+|github:)/,
+    message:
+      "Executing a package from a URL/Git source bypasses registry provenance checks. Prefer a pinned registry package.",
+  },
 ];
 
 /** Scan a raw shell command for dangerous operations. */

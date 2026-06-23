@@ -6,8 +6,17 @@ export interface InstallTarget {
   raw: string;
 }
 
-const NPM_TOOLS = new Set(["npm", "pnpm", "yarn", "bun"]);
-const PY_TOOLS = new Set(["pip", "pip3", "uv", "python", "python3", "poetry"]);
+const NPM_TOOLS = new Set(["npm", "pnpm", "yarn", "bun", "npx", "bunx"]);
+const PY_TOOLS = new Set([
+  "pip",
+  "pip3",
+  "uv",
+  "uvx",
+  "python",
+  "python3",
+  "poetry",
+  "pipx",
+]);
 
 const FLAGS_WITH_VALUE = new Set([
   "--registry", "--prefix", "-r", "--requirement", "-c", "--constraint",
@@ -53,6 +62,12 @@ export function extractInstallTargets(command: string): InstallTarget[] {
           (sc === "install" || sc === "i" || sc === "add")) ||
         (tool === "yarn" && sc === "add");
       if (isInstall) collectSpecs(rest.slice(1), "npm", targets);
+
+      const createArgs = npmCreateArgs(tool, rest);
+      if (createArgs) collectCreateSpec(createArgs, targets);
+
+      const execArgs = npmExecArgs(tool, rest);
+      if (execArgs) collectExecutableSpec(execArgs, "npm", targets);
     } else if (PY_TOOLS.has(tool)) {
       let args = rest;
       let isInstall = false;
@@ -73,15 +88,94 @@ export function extractInstallTargets(command: string): InstallTarget[] {
       } else if (tool === "uv" && args[0] === "add") {
         isInstall = true;
         args = args.slice(1);
+      } else if (tool === "uvx") {
+        collectExecutableSpec(args, "pypi", targets);
       } else if (tool === "poetry" && args[0] === "add") {
         isInstall = true;
         args = args.slice(1);
+      } else if (tool === "pipx" && args[0] === "install") {
+        isInstall = true;
+        args = args.slice(1);
+      } else if (tool === "pipx" && args[0] === "run") {
+        collectExecutableSpec(args.slice(1), "pypi", targets);
       }
       if (isInstall) collectSpecs(args, "pypi", targets);
     }
   }
 
   return targets;
+}
+
+function npmExecArgs(tool: string, rest: string[]): string[] | null {
+  if (tool === "npx" || tool === "bunx") return rest;
+  if (tool === "npm" && (rest[0] === "exec" || rest[0] === "x")) return rest.slice(1);
+  if (tool === "pnpm" && rest[0] === "dlx") return rest.slice(1);
+  if (tool === "yarn" && rest[0] === "dlx") return rest.slice(1);
+  if (tool === "bun" && (rest[0] === "x" || rest[0] === "dlx")) return rest.slice(1);
+  return null;
+}
+
+function npmCreateArgs(tool: string, rest: string[]): string[] | null {
+  if ((tool === "npm" || tool === "pnpm" || tool === "bun") && rest[0] === "create") {
+    return rest.slice(1);
+  }
+  if (tool === "npm" && rest[0] === "init") return rest.slice(1);
+  if (tool === "yarn" && rest[0] === "create") return rest.slice(1);
+  return null;
+}
+
+function collectCreateSpec(args: string[], out: InstallTarget[]): void {
+  for (const a of args) {
+    if (a.startsWith("-")) continue;
+    if (isNonPackageSpec(a)) continue;
+    const rawName = specToName(a, "npm");
+    if (!rawName) return;
+    const name = rawName.startsWith("@") || rawName.startsWith("create-")
+      ? rawName
+      : `create-${rawName}`;
+    out.push({ name, ecosystem: "npm", raw: a });
+    return;
+  }
+}
+
+function collectExecutableSpec(
+  args: string[],
+  ecosystem: Ecosystem,
+  out: InstallTarget[],
+): void {
+  let foundExplicitPackage = false;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i] ?? "";
+    if (a === "--") {
+      if (foundExplicitPackage) return;
+      continue;
+    }
+    if (a === "--package" || a === "-p") {
+      const value = args[i + 1];
+      if (value && !isNonPackageSpec(value)) {
+        const name = specToName(value, ecosystem);
+        if (name) out.push({ name, ecosystem, raw: value });
+      }
+      foundExplicitPackage = true;
+      i++;
+      continue;
+    }
+    if (a.startsWith("--package=")) {
+      const value = a.slice("--package=".length);
+      if (value && !isNonPackageSpec(value)) {
+        const name = specToName(value, ecosystem);
+        if (name) out.push({ name, ecosystem, raw: value });
+      }
+      foundExplicitPackage = true;
+      continue;
+    }
+    if (foundExplicitPackage) continue;
+    if (a.startsWith("-")) continue;
+    if (isNonPackageSpec(a)) continue;
+    const name = specToName(a, ecosystem);
+    if (name) out.push({ name, ecosystem, raw: a });
+    return;
+  }
 }
 
 function collectSpecs(

@@ -27,3 +27,12 @@ test("fork bomb is blocked", () => {
 test("a normal install is clean", () => {
   assert.deepEqual(codes("npm install express"), []);
 });
+
+test("remote executable package specs warn", () => {
+  assert.ok(codes("npx github:someone/tool").includes("remote_exec_package"));
+  assert.ok(
+    codes("pnpm dlx https://example.com/tool.tgz").includes(
+      "remote_exec_package",
+    ),
+  );
+});

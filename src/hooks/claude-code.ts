@@ -1,5 +1,5 @@
 import type { CommandVerdict } from "../core/types.js";
-import { vetCommand } from "../core/vet-command.js";
+import { vetCommandInContext } from "../core/vet-command.js";
 
 /**
  * Claude Code PreToolUse hook. Reads the tool-call payload on stdin; if the
@@ -22,7 +22,10 @@ export async function runClaudeCodeHook(): Promise<number> {
   if (toolName && toolName !== "Bash") return 0;
   if (!command) return 0;
 
-  const verdict = await vetCommand(String(command));
+  const cwd = payload?.cwd ?? payload?.tool_input?.cwd ?? payload?.toolInput?.cwd;
+  const verdict = await vetCommandInContext(String(command), {
+    cwd: typeof cwd === "string" ? cwd : undefined,
+  });
   if (verdict.decision === "block") {
     emit("deny", reason(verdict));
   } else if (verdict.decision === "warn") {

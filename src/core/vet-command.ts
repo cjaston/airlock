@@ -9,13 +9,20 @@ import { vetPackage } from "./vet.js";
  * entry point used by the MCP server, the Claude Code hook, and the shims.
  */
 export async function vetCommand(command: string): Promise<CommandVerdict> {
+  return vetCommandInContext(command);
+}
+
+export async function vetCommandInContext(
+  command: string,
+  options: { cwd?: string } = {},
+): Promise<CommandVerdict> {
   const signals: Signal[] = [];
 
   signals.push(...guardCommand(command));
 
   const targets = extractInstallTargets(command);
   const packages = await Promise.all(
-    targets.map((t) => vetPackage(t.name, t.ecosystem)),
+    targets.map((t) => vetPackage(t.name, t.ecosystem, options)),
   );
   for (const pv of packages) {
     for (const s of pv.signals) {

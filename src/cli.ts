@@ -6,6 +6,8 @@ import { runMcpServer } from "./mcp.js";
 import { runClaudeCodeHook } from "./hooks/claude-code.js";
 import { runShim, runGuard } from "./shim.js";
 import { runInit } from "./integrations/init.js";
+import { cacheStats, clearCache } from "./core/cache.js";
+import { initPolicy } from "./core/policy.js";
 
 const RESET = "\x1b[0m";
 const RED = "\x1b[41m\x1b[97m\x1b[1m";
@@ -43,6 +45,12 @@ export async function main(argv: string[]): Promise<number> {
       return 0;
     case "guard":
       return runGuard(argv.slice(1));
+    case "cache":
+      return runCache(argv.slice(1));
+    case "policy":
+      return runPolicy(argv.slice(1));
+    case "demo":
+      return runDemo();
   }
 
   // Option-parsed commands (check, help).
@@ -107,6 +115,47 @@ async function runVetCommand(commandStr: string): Promise<number> {
   return v.decision === "block" ? 1 : 0;
 }
 
+function runCache(args: string[]): number {
+  const sub = args[0] ?? "status";
+  if (sub === "clear") {
+    clearCache();
+    console.log("Airlock cache cleared.");
+    return 0;
+  }
+  if (sub === "status") {
+    const stats = cacheStats();
+    console.log(`cache file: ${stats.file}`);
+    console.log(`entries: ${stats.entries}`);
+    return 0;
+  }
+  console.error("usage: airlock cache <status|clear>");
+  return 2;
+}
+
+function runPolicy(args: string[]): number {
+  const sub = args[0] ?? "";
+  if (sub === "init") {
+    console.log(initPolicy());
+    return 0;
+  }
+  console.error("usage: airlock policy init");
+  return 2;
+}
+
+async function runDemo(): Promise<number> {
+  console.log(`${BOLD}Airlock demo: AI agent wants to run this:${RESET}`);
+  const command = "npx fast-csv-helper init && rm -rf ~";
+  const v = await vetCommand(command);
+  printCommandVerdict(v);
+  console.log("");
+  console.log(
+    v.decision === "block"
+      ? `${FG_RED}Stopped before anything executed.${RESET}`
+      : `${FG_YELLOW}Demo did not block; check registry/network state.${RESET}`,
+  );
+  return v.decision === "block" ? 0 : 1;
+}
+
 function badge(decision: string): string {
   return decision === "block"
     ? `${RED} BLOCK ${RESET}`
@@ -147,7 +196,11 @@ usage:
   airlock vet-command "<cmd>"        Vet a full shell command (installs + destructive ops)
   airlock init <agent> [...]         Wire Airlock into an agent:
                                        claude-code | codex | gemini | cursor | shell | all
-  airlock guard <install|status|path>  Manage universal PATH shims (npm/pip/…)
+  airlock guard <install|uninstall|status|path>
+                                     Manage universal PATH shims (npm/pip/npx/uvx/...)
+  airlock cache <status|clear>       Inspect or clear registry cache
+  airlock policy init                Create .airlock.json allow/block policy
+  airlock demo                       Run the scary 10-second demo
   airlock mcp                        Run as an MCP server (stdio)
   airlock hook claude-code           Run as a Claude Code PreToolUse hook (reads stdin)
 

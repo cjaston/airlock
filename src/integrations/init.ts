@@ -1,18 +1,11 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { installShims } from "../shim.js";
-
-/** node + absolute path to dist/index.js, so configs work without a global install. */
-function cli(): { command: string; entry: string } {
-  const here = path.dirname(fileURLToPath(import.meta.url)); // dist/integrations
-  return { command: process.execPath, entry: path.resolve(here, "..", "index.js") };
-}
+import { selfCommand, shellCommand } from "../runtime.js";
 
 function mcpSpec(): { command: string; args: string[] } {
-  const { command, entry } = cli();
-  return { command, args: [entry, "mcp"] };
+  return selfCommand(["mcp"]);
 }
 
 function readJson(file: string): any {
@@ -65,7 +58,6 @@ export function runInit(agents: string[], cwd = process.cwd()): string[] {
 
 function initClaudeCode(cwd: string): string[] {
   const out: string[] = [];
-  const { command, entry } = cli();
 
   // 1) MCP server via project .mcp.json
   const mcpFile = path.join(cwd, ".mcp.json");
@@ -80,7 +72,7 @@ function initClaudeCode(cwd: string): string[] {
   const settings = readJson(settingsFile);
   settings.hooks ??= {};
   settings.hooks.PreToolUse ??= [];
-  const hookCmd = `${shq(command)} ${shq(entry)} hook claude-code`;
+  const hookCmd = shellCommand(selfCommand(["hook", "claude-code"]));
   const already = JSON.stringify(settings.hooks.PreToolUse).includes("hook claude-code");
   if (!already) {
     settings.hooks.PreToolUse.push({
@@ -96,7 +88,7 @@ function initClaudeCode(cwd: string): string[] {
 }
 
 function initCodex(): string[] {
-  const { command, entry } = cli();
+  const { command, args } = selfCommand(["mcp"]);
   const file = path.join(os.homedir(), ".codex", "config.toml");
   let content = "";
   try {
@@ -107,7 +99,7 @@ function initCodex(): string[] {
   if (content.includes("[mcp_servers.airlock]")) {
     return [`Codex: airlock MCP already configured (${file})`];
   }
-  const block = `\n[mcp_servers.airlock]\ncommand = ${JSON.stringify(command)}\nargs = [${JSON.stringify(entry)}, "mcp"]\n`;
+  const block = `\n[mcp_servers.airlock]\ncommand = ${JSON.stringify(command)}\nargs = [${args.map((arg) => JSON.stringify(arg)).join(", ")}]\n`;
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.appendFileSync(file, block);
   return [`Codex: added airlock MCP server to ${file}`];
@@ -129,8 +121,4 @@ function initCursor(cwd: string): string[] {
   json.mcpServers.airlock = mcpSpec();
   writeJson(file, json);
   return [`Cursor: registered airlock MCP server in ${file}`];
-}
-
-function shq(s: string): string {
-  return `'${s.replace(/'/g, `'\\''`)}'`;
 }
