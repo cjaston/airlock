@@ -44,6 +44,9 @@ npx airlock-cli vet-command "npx fast-csv-helper init && rm -rf ~"
 
 # run the full repo safety pass before saying "done"
 npx airlock-cli audit
+
+# see which protection layers are installed
+npx airlock-cli doctor
 ```
 
 Exit codes:

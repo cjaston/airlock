@@ -6,6 +6,7 @@ import { vetCommand } from "./core/vet-command.js";
 import { scanProject, type ScanResult } from "./core/scan.js";
 import { scanSecrets, type SecretScanResult } from "./core/secrets.js";
 import { scanGitDiff, type DiffScanResult } from "./core/diff-guard.js";
+import { runDoctor, type DoctorResult } from "./doctor.js";
 import { runMcpServer } from "./mcp.js";
 import { runClaudeCodeHook } from "./hooks/claude-code.js";
 import { runShim, runGuard } from "./shim.js";
@@ -163,6 +164,17 @@ export async function main(argv: string[]): Promise<number> {
       result.diff.findings.length > 0
       ? 1
       : 0;
+  }
+
+  if (command === "doctor") {
+    const root = positionals[1] ?? process.cwd();
+    const result = runDoctor(root);
+    if (values.json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      printDoctor(result);
+    }
+    return 0;
   }
 
   console.error(`unknown command "${command}". Run "airlock help".`);
@@ -349,6 +361,14 @@ function printAudit(result: {
   console.log("");
 }
 
+function printDoctor(result: DoctorResult): void {
+  console.log(`\n${BOLD}Airlock doctor${RESET} ${DIM}${result.cwd}${RESET}`);
+  for (const check of result.checks) {
+    console.log(`  ${mark(check.ok ? "allow" : "warn")} ${check.name}: ${check.detail}`);
+  }
+  console.log("");
+}
+
 function printHelp(): void {
   console.log(`airlock — a firewall between AI agents and dangerous actions
 
@@ -362,6 +382,7 @@ usage:
   airlock secrets [path]             Scan files for high-confidence leaked secrets
   airlock diff [path] [--staged]     Scan git diff for suspicious test changes
   airlock audit [path] [--staged]    Run dependency, secret, and diff guards
+  airlock doctor [path]              Show which Airlock integrations are active
   airlock init <agent> [...]         Wire Airlock into an agent:
                                        claude-code | codex | gemini | cursor | shell | git | all
   airlock guard <install|uninstall|status|path>

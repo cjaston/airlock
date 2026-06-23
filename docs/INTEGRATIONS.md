@@ -10,6 +10,7 @@ everything.
 npx airlock-cli init all
 npx airlock-cli guard install
 npx airlock-cli init git
+npx airlock-cli doctor
 ```
 
 Then add the shim directory to the front of your shell PATH:
