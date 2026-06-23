@@ -29,6 +29,7 @@
     "build": "tsc",
     "dev": "tsc && node dist/index.js",
     "demo": "npm run build && node dist/index.js demo",
+    "prepare": "npm run build",
     "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test"
