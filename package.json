@@ -1,0 +1,44 @@
+{
+  "name": "airlock-cli",
+  "version": "0.0.1",
+  "description": "A firewall between AI coding agents and dangerous actions. Blocks hallucinated and slopsquatted package installs before they run.",
+  "type": "module",
+  "bin": {
+    "airlock": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc && node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "agents",
+    "security",
+    "slopsquatting",
+    "supply-chain",
+    "mcp",
+    "firewall",
+    "claude",
+    "claude-code",
+    "codex",
+    "npm",
+    "pypi"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
