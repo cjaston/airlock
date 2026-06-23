@@ -2,10 +2,11 @@
 
 **A firewall between AI coding agents and dangerous actions.**
 
-Airlock blocks hallucinated/slopsquatted package installs, `npx` package
-execution, and destructive shell commands before they run. It works as a CLI,
-an MCP server, a Claude Code `PreToolUse` hook, and universal PATH shims for
-any agent or human using your shell.
+Airlock blocks hallucinated/slopsquatted package installs, package execution,
+leaked secrets, destructive shell commands, and suspicious test changes before
+they ship. It works as a CLI, an MCP server, a Claude Code `PreToolUse` hook,
+a git pre-commit hook, and universal PATH shims for any agent or human using
+your shell.
 
 ```bash
 npx airlock-cli demo
@@ -40,12 +41,15 @@ npx airlock-cli check requests -e pypi
 
 # vet a whole command before an agent runs it
 npx airlock-cli vet-command "npx fast-csv-helper init && rm -rf ~"
+
+# run the full repo safety pass before saying "done"
+npx airlock-cli audit
 ```
 
 Exit codes:
 
-- `0`: allowed or warning only
-- `1`: blocked
+- `0`: no blocking finding for the command
+- `1`: blocked package/command, leaked secret, or audit finding
 - `2`: usage error
 
 ## Wire It Into Your Agent
@@ -56,6 +60,7 @@ npx airlock-cli init codex         # MCP in ~/.codex/config.toml
 npx airlock-cli init gemini        # MCP in ~/.gemini/settings.json
 npx airlock-cli init cursor        # MCP in .cursor/mcp.json
 npx airlock-cli init shell         # universal PATH shims
+npx airlock-cli init git           # pre-commit secrets + test-change guard
 npx airlock-cli init all
 ```
 
@@ -66,6 +71,7 @@ npx airlock-cli init all
 | Gemini CLI | MCP server | Gives Gemini `vet_package` and `vet_command` tools |
 | Cursor | MCP server | Gives Cursor `vet_package` and `vet_command` tools |
 | Any shell / any agent | PATH shims | Intercepts package managers at the process level |
+| Git | pre-commit hook | Blocks leaked secrets and suspicious staged test changes |
 
 Claude Code hooks can return `permissionDecision: "deny"` for `PreToolUse`
 events, so Airlock can block a Bash command without relying on the model to
@@ -84,7 +90,7 @@ export PATH="$HOME/.airlock/shims:$PATH"
 This installs shims for:
 
 ```text
-npm, npx, pnpm, yarn, bun, bunx, pip, pip3, pipx, uv, uvx, poetry
+npm, npx, pnpm, yarn, bun, bunx, pip, pip3, pipx, uv, uvx, poetry, cargo, gem, bundle, bundler, go
 ```
 
 Now these are vetted whether they are run by you, Claude Code, Codex, Gemini,
@@ -96,6 +102,9 @@ npx create-next-app@latest app
 pnpm dlx shadcn@latest init
 uvx ruff check
 pipx run black .
+cargo add serde
+gem install rails
+go install github.com/gin-gonic/gin@latest
 ```
 
 Remove shims:
@@ -106,9 +115,10 @@ npx airlock-cli guard uninstall
 
 ## What Airlock Checks
 
-Dependency and package-execution guard:
+Dependency and package-execution guard (`npm`, `PyPI`, `crates.io`,
+`RubyGems`, Go modules):
 
-- **Package existence**: nonexistent npm/PyPI package -> block
+- **Package existence**: nonexistent packages/modules -> block
 - **Typosquat**: `expresss` -> `express`
 - **Mashup/slopsquat**: `lodash-utils`, `requests-helper`
 - **New + low adoption**: recently published packages with weak adoption -> warn/block
@@ -117,6 +127,8 @@ Dependency and package-execution guard:
   `uvx`, `pipx run`
 - **Scaffold aliases**: `npm create vite` maps to the actual `create-vite`
   package before vetting
+- **Manifest scan**: `package.json`, `requirements.txt`, `pyproject.toml`,
+  `Cargo.toml`, `Gemfile`, `go.mod`
 
 Destructive-command guard:
 
@@ -125,6 +137,14 @@ Destructive-command guard:
 - `git push --force`, `git reset --hard`, `git clean -f` -> warn
 - `DROP TABLE`, `TRUNCATE TABLE`, `curl ... | sh` -> warn
 - package execution from URL/Git specs -> warn
+
+Repo-audit guards:
+
+- `airlock secrets` blocks high-confidence GitHub/OpenAI/Anthropic/AWS/Slack
+  tokens and private keys
+- `airlock diff --staged` warns on suspicious test changes: removed assertions,
+  skipped tests, focused-only tests, or deleted test files
+- `airlock audit` runs dependency, secret, and test-change checks together
 
 In Claude Code:
 
@@ -146,11 +166,17 @@ Creates `.airlock.json`:
 {
   "allow": {
     "npm": ["@your-org/*"],
-    "pypi": ["your-private-package"]
+    "pypi": ["your-private-package"],
+    "cargo": ["your-private-crate"],
+    "rubygems": ["your-private-gem"],
+    "go": ["github.com/your-org/*"]
   },
   "block": {
     "npm": ["known-bad-package"],
-    "pypi": ["known-bad-package"]
+    "pypi": ["known-bad-package"],
+    "cargo": ["known-bad-crate"],
+    "rubygems": ["known-bad-gem"],
+    "go": ["github.com/bad/*"]
   }
 }
 ```
@@ -160,20 +186,25 @@ carry its own allow/block rules.
 
 ## MCP Tools
 
-Airlock exposes two tools:
+Airlock exposes these MCP tools:
 
 - `vet_package({ name, ecosystem, cwd? })`
 - `vet_command({ command, cwd? })`
+- `scan_project({ cwd? })`
+- `scan_secrets({ cwd? })`
+- `scan_diff({ cwd?, staged? })`
+- `audit_project({ cwd?, staged? })`
 
 Agents should call `vet_command` before shell commands that install packages,
 execute packages, delete files, rewrite git history, touch disks, or touch
-databases. If the result is **BLOCK**, do not run the command.
+databases. Agents should call `audit_project` before finishing or committing
+code. If the result is **BLOCK**, do not run the command.
 
 ## Privacy
 
 - No backend
 - No telemetry
-- Package names are looked up directly against public npm/PyPI APIs
+- Package names are looked up directly against public registry APIs
 - Registry facts are cached locally in `~/.airlock/cache`
 - Disable cache for a run with `AIRLOCK_NO_CACHE=1`
 
@@ -202,7 +233,7 @@ project and is not an official OpenAI product or endorsement.
 
 ## Roadmap
 
-- [x] npm + PyPI package existence/age/adoption/provenance checks
+- [x] npm + PyPI + crates.io + RubyGems + Go module checks
 - [x] typosquat + mashup/slopsquat heuristics
 - [x] `npx`/`dlx`/`uvx`/`pipx` package execution checks
 - [x] destructive-command guard
@@ -210,9 +241,11 @@ project and is not an official OpenAI product or endorsement.
 - [x] Claude Code `PreToolUse` hook
 - [x] universal PATH shims
 - [x] project policy file (`.airlock.json`)
-- [ ] more ecosystems: cargo, go, gem, maven, nuget
-- [ ] secret-leak guard
-- [ ] test-subversion detector
+- [x] repo manifest scan
+- [x] secret-leak guard
+- [x] test-subversion detector
+- [x] git pre-commit hook
+- [ ] more ecosystems: maven, nuget, composer
 - [ ] signed policy bundles for teams
 
 ## License

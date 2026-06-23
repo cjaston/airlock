@@ -21,7 +21,7 @@ function writeJson(file: string, obj: unknown): void {
   fs.writeFileSync(file, JSON.stringify(obj, null, 2) + "\n");
 }
 
-const ALL = ["claude-code", "codex", "gemini", "cursor", "shell"];
+const ALL = ["claude-code", "codex", "gemini", "cursor", "shell", "git"];
 
 export function runInit(agents: string[], cwd = process.cwd()): string[] {
   const list = agents.includes("all")
@@ -48,6 +48,9 @@ export function runInit(agents: string[], cwd = process.cwd()): string[] {
         break;
       case "shell":
         out.push(...installShims());
+        break;
+      case "git":
+        out.push(...initGitHook(cwd));
         break;
       default:
         out.push(`(skipped unknown agent "${a}")`);
@@ -121,4 +124,34 @@ function initCursor(cwd: string): string[] {
   json.mcpServers.airlock = mcpSpec();
   writeJson(file, json);
   return [`Cursor: registered airlock MCP server in ${file}`];
+}
+
+function initGitHook(cwd: string): string[] {
+  const gitDir = path.join(cwd, ".git");
+  if (!fs.existsSync(gitDir)) {
+    return [`Git: ${cwd} is not a git repository (no .git directory)`];
+  }
+  const hookFile = path.join(gitDir, "hooks", "pre-commit");
+  let content = "";
+  try {
+    content = fs.readFileSync(hookFile, "utf8");
+  } catch {
+    content = "#!/bin/sh\n";
+  }
+  if (content.includes("# airlock-pre-commit:start")) {
+    return [`Git: Airlock pre-commit hook already present in ${hookFile}`];
+  }
+  const block = [
+    "",
+    "# airlock-pre-commit:start",
+    "# Blocks high-confidence secrets and suspicious staged test changes.",
+    `${shellCommand(selfCommand(["secrets", "."]))} || exit $?`,
+    `${shellCommand(selfCommand(["diff", ".", "--staged"]))} || exit $?`,
+    "# airlock-pre-commit:end",
+    "",
+  ].join("\n");
+  fs.mkdirSync(path.dirname(hookFile), { recursive: true });
+  fs.writeFileSync(hookFile, content.trimEnd() + block);
+  fs.chmodSync(hookFile, 0o755);
+  return [`Git: added Airlock pre-commit hook to ${hookFile}`];
 }

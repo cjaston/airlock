@@ -92,10 +92,12 @@ export function scorePackage(facts: PackageFacts): Verdict {
       facts.weeklyDownloads !== null
         ? `, ${facts.weeklyDownloads.toLocaleString()} downloads/week`
         : "";
+    const age =
+      facts.ageDays !== null ? `${facts.ageDays} days old${dl}` : `registry metadata verified${dl}`;
     signals.push({
       level: "allow",
       code: "ok",
-      message: `Established package (${facts.ageDays ?? "?"} days old${dl}).`,
+      message: `Established package (${age}).`,
     });
   }
 

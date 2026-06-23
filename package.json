@@ -1,7 +1,7 @@
 {
   "name": "airlock-cli",
-  "version": "0.0.1",
-  "description": "A firewall between AI coding agents and dangerous actions. Blocks hallucinated and slopsquatted package installs before they run.",
+  "version": "0.1.0",
+  "description": "A firewall between AI coding agents and dangerous actions. Blocks hallucinated packages, leaked secrets, destructive commands, and test-subversion.",
   "type": "module",
   "bin": {
     "airlock": "dist/index.js"
@@ -50,7 +50,12 @@
     "claude-code",
     "codex",
     "npm",
-    "pypi"
+    "pypi",
+    "cargo",
+    "rubygems",
+    "go",
+    "secrets",
+    "pre-commit"
   ],
   "license": "MIT",
   "dependencies": {

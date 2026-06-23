@@ -63,3 +63,36 @@ export const POPULAR_PYPI = new Set<string>([
   "docker", "kubernetes", "ansible", "fabric", "invoke",
   "websockets", "grpcio", "protobuf", "marshmallow", "flask-sqlalchemy",
 ]);
+
+export const POPULAR_CARGO = new Set<string>([
+  "serde", "serde-json", "tokio", "rand", "anyhow", "thiserror", "clap",
+  "reqwest", "axum", "tracing", "regex", "chrono", "uuid", "sqlx", "diesel",
+  "rocket", "hyper", "actix-web", "bevy", "wasm-bindgen", "rayon", "bytes",
+  "futures", "parking-lot", "once-cell", "log", "env-logger", "itertools",
+]);
+
+export const POPULAR_RUBYGEMS = new Set<string>([
+  "rails", "rack", "rake", "rspec", "bundler", "nokogiri", "pg", "puma",
+  "devise", "sidekiq", "rubocop", "faraday", "redis", "pry", "jbuilder",
+  "sqlite3", "sinatra", "json", "thor", "i18n", "activesupport",
+  "activerecord", "actionpack", "capybara", "factory-bot", "webmock",
+]);
+
+export const POPULAR_GO = new Set<string>([
+  "github.com/gin-gonic/gin",
+  "github.com/spf13/cobra",
+  "github.com/spf13/viper",
+  "github.com/stretchr/testify",
+  "github.com/gorilla/mux",
+  "github.com/sirupsen/logrus",
+  "github.com/rs/zerolog",
+  "go.uber.org/zap",
+  "go.uber.org/fx",
+  "go.uber.org/dig",
+  "golang.org/x/sync",
+  "golang.org/x/net",
+  "golang.org/x/crypto",
+  "google.golang.org/grpc",
+  "gorm.io/gorm",
+  "gorm.io/driver/postgres",
+]);

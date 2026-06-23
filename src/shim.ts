@@ -19,6 +19,11 @@ const SHIMMED_TOOLS = [
   "uv",
   "uvx",
   "poetry",
+  "cargo",
+  "gem",
+  "bundle",
+  "bundler",
+  "go",
 ];
 
 const RESET = "\x1b[0m";
@@ -94,7 +99,7 @@ export function installShims(): string[] {
     "Add this to the FRONT of your PATH (in ~/.zshrc or ~/.bashrc):",
     `  export PATH="${SHIM_DIR}:$PATH"`,
     "",
-    "Then any `npm install` / `pip install` — by you OR any agent — is vetted first.",
+    "Then package installs/executions — by you OR any agent — are vetted first.",
   ];
 }
 

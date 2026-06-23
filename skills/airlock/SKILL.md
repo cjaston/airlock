@@ -1,45 +1,63 @@
 ---
 name: airlock
-description: Vet packages and shell commands for hallucinated/typosquatted dependencies and destructive operations BEFORE running them. Use before any npm/pip/yarn/pnpm/uv install or any risky shell command.
+description: Use Airlock before installing or executing packages, running risky shell commands, committing generated code, or declaring an agent task complete. Airlock detects hallucinated/slopsquatted dependencies, destructive commands, leaked secrets, and suspicious test changes.
 ---
 
-# Airlock — verify before you install or run
+# Airlock — verify before you act
 
-You (the agent) must not install a package or run a destructive command without
-checking it first. AI models hallucinate package names that attackers register
-(slopsquatting), and can be nudged into irreversible commands.
+You (the agent) should use Airlock as a local safety gate. AI coding agents can
+hallucinate package names, install packages through executors like `npx`, leak
+secrets into config/test files, or weaken tests to make a task pass.
 
-## When to use
+## Required uses
 
-- **Before any package install** — `npm install`, `pip install`, `yarn add`,
-  `pnpm add`, `uv pip install`, `poetry add`, etc.
-- **Before any command that deletes files, rewrites VCS history, or touches a
-  database/disk** — `rm -rf`, `git push --force`, `git reset --hard`,
-  `DROP TABLE`, `dd`, `mkfs`, `curl … | sh`.
+- **Before package installs or package execution**:
+  `npm install`, `npx`, `npm exec`, `pnpm dlx`, `yarn dlx`, `bunx`,
+  `pip install`, `uvx`, `pipx run`, `cargo add`, `cargo install`,
+  `gem install`, `bundle add`, `go get`, `go install`.
+- **Before destructive commands**:
+  `rm -rf`, `git push --force`, `git reset --hard`, `git clean -f`,
+  `DROP TABLE`, `dd`, `mkfs`, `curl ... | sh`.
+- **Before finishing a coding task**:
+  run the full audit so dependency manifests, secrets, and test changes are
+  checked before you tell the user the work is done.
 
-## How to use
+## MCP tools
 
-If the Airlock MCP server is available, call its tools:
+Prefer MCP tools when available:
 
-- `vet_package({ name, ecosystem })` — verify a single package (`ecosystem`:
-  `npm` or `pypi`).
-- `vet_command({ command })` — vet a full shell command (installs + destructive
-  ops) in one call.
+- `vet_package({ name, ecosystem, cwd? })`
+  Verify a single package. Ecosystems: `npm`, `pypi`, `cargo`, `rubygems`, `go`.
+- `vet_command({ command, cwd? })`
+  Vet an exact shell command before running it.
+- `scan_project({ cwd? })`
+  Scan dependency manifests: `package.json`, `requirements.txt`,
+  `pyproject.toml`, `Cargo.toml`, `Gemfile`, `go.mod`.
+- `scan_secrets({ cwd? })`
+  Scan for high-confidence leaked GitHub/OpenAI/Anthropic/AWS/Slack tokens and
+  private keys.
+- `scan_diff({ cwd?, staged? })`
+  Scan git diff for removed assertions, skipped/focused tests, and deleted test
+  files.
+- `audit_project({ cwd?, staged? })`
+  Run the full local audit. Use this before finishing or committing.
 
-Otherwise, run the CLI and read the exit code (0 = ok/warn, 1 = BLOCKED):
+## CLI fallback
+
+If MCP is unavailable:
 
 ```bash
-airlock check <package> [-e npm|pypi]
 airlock vet-command "<the exact command you are about to run>"
+airlock audit .
+airlock audit . --staged
 ```
 
-## How to act on the result
+## How to act on results
 
-- **BLOCK** → do **not** run it. Stop and tell the user what was flagged and why
-  (e.g. the package doesn't exist, or looks like a typosquat of a popular one).
-  Suggest the correct package name if there's an obvious intended target.
-- **WARN** → surface the warning to the user and get confirmation before
-  proceeding.
-- **ALLOW** → proceed normally.
+- **BLOCK**: do not run or commit. Explain what was blocked and ask the user or
+  fix the issue.
+- **WARN**: surface the warning and get confirmation before proceeding.
+- **ALLOW**: proceed normally.
 
-Always prefer confirming a suspicious name with the user over guessing.
+Never guess a suspicious dependency name. Confirm the intended package or module
+with the user.

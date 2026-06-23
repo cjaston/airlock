@@ -1,4 +1,4 @@
-export type Ecosystem = "npm" | "pypi";
+export type Ecosystem = "npm" | "pypi" | "cargo" | "rubygems" | "go";
 
 export type Decision = "block" | "warn" | "allow";
 

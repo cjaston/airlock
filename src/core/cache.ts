@@ -5,6 +5,7 @@ import type { Ecosystem, PackageFacts } from "./types.js";
 
 const CACHE_DIR = path.join(os.homedir(), ".airlock", "cache");
 const CACHE_FILE = path.join(CACHE_DIR, "facts.json");
+const CACHE_VERSION = "v3";
 const OK_TTL_MS = 24 * 60 * 60 * 1000;
 const ERROR_TTL_MS = 5 * 60 * 1000;
 
@@ -25,7 +26,7 @@ export async function cachedFacts(
   if (process.env.AIRLOCK_NO_CACHE === "1") return fetcher();
 
   const cache = readCache();
-  const key = `${ecosystem}:${name.toLowerCase()}`;
+  const key = `${CACHE_VERSION}:${ecosystem}:${name.toLowerCase()}`;
   const entry = cache[key];
   if (entry && !isExpired(entry)) return entry.facts;
 

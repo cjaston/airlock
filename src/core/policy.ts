@@ -81,10 +81,16 @@ export function initPolicy(cwd = process.cwd()): string {
     allow: {
       npm: ["@your-org/*"],
       pypi: ["your-private-package"],
+      cargo: ["your-private-crate"],
+      rubygems: ["your-private-gem"],
+      go: ["github.com/your-org/*"],
     },
     block: {
       npm: ["known-bad-package"],
       pypi: ["known-bad-package"],
+      cargo: ["known-bad-crate"],
+      rubygems: ["known-bad-gem"],
+      go: ["github.com/bad/*"],
     },
   };
   fs.writeFileSync(file, JSON.stringify(sample, null, 2) + "\n");

@@ -9,6 +9,7 @@ everything.
 ```bash
 npx airlock-cli init all
 npx airlock-cli guard install
+npx airlock-cli init git
 ```
 
 Then add the shim directory to the front of your shell PATH:
@@ -89,6 +90,20 @@ This writes `.cursor/mcp.json` in the current project:
 
 Open Cursor's MCP settings to verify that the server is connected.
 
+## Git Pre-Commit Hook
+
+```bash
+npx airlock-cli init git
+```
+
+This appends an Airlock block to `.git/hooks/pre-commit`:
+
+- `airlock secrets .`
+- `airlock diff . --staged`
+
+It blocks high-confidence secrets and suspicious staged test changes before a
+commit is created.
+
 ## Shell Guard
 
 ```bash
@@ -100,10 +115,22 @@ The shell guard works with every agent because it intercepts package tools at
 the process layer:
 
 ```text
-npm, npx, pnpm, yarn, bun, bunx, pip, pip3, pipx, uv, uvx, poetry
+npm, npx, pnpm, yarn, bun, bunx, pip, pip3, pipx, uv, uvx, poetry, cargo, gem, bundle, bundler, go
 ```
 
 Use this when an agent does not support MCP, or when you want defense in depth.
+
+## Agent Completion Check
+
+For agents with MCP, the most important end-of-task tool is:
+
+```text
+audit_project({ cwd, staged })
+```
+
+It runs dependency manifest checks, secret scanning, and suspicious test-change
+detection in one pass. Agents should call it before saying a task is complete
+or before asking to commit.
 
 ## Stable Invocation
 

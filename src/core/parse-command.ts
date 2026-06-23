@@ -17,10 +17,14 @@ const PY_TOOLS = new Set([
   "poetry",
   "pipx",
 ]);
+const CARGO_TOOLS = new Set(["cargo"]);
+const RUBY_TOOLS = new Set(["gem", "bundle", "bundler"]);
+const GO_TOOLS = new Set(["go"]);
 
 const FLAGS_WITH_VALUE = new Set([
   "--registry", "--prefix", "-r", "--requirement", "-c", "--constraint",
   "--index-url", "-i", "--extra-index-url", "--tag", "--workspace", "-w",
+  "--features", "-F", "--version", "-v", "--source", "--bindir", "--root",
 ]);
 
 /** Split a shell line into individual commands on &&, ||, ;, |, newline. */
@@ -100,6 +104,20 @@ export function extractInstallTargets(command: string): InstallTarget[] {
         collectExecutableSpec(args.slice(1), "pypi", targets);
       }
       if (isInstall) collectSpecs(args, "pypi", targets);
+    } else if (CARGO_TOOLS.has(tool)) {
+      if (rest[0] === "add" || rest[0] === "install") {
+        collectSpecs(rest.slice(1), "cargo", targets);
+      }
+    } else if (RUBY_TOOLS.has(tool)) {
+      if (tool === "gem" && rest[0] === "install") {
+        collectSpecs(rest.slice(1), "rubygems", targets);
+      } else if ((tool === "bundle" || tool === "bundler") && rest[0] === "add") {
+        collectSpecs(rest.slice(1), "rubygems", targets);
+      }
+    } else if (GO_TOOLS.has(tool)) {
+      if (rest[0] === "get" || rest[0] === "install") {
+        collectSpecs(rest.slice(1), "go", targets);
+      }
     }
   }
 
@@ -212,6 +230,10 @@ function specToName(spec: string, ecosystem: Ecosystem): string | null {
       const at = spec.indexOf("@", 1); // version separator after scope
       return at === -1 ? spec : spec.slice(0, at);
     }
+    const at = spec.indexOf("@");
+    return at === -1 ? spec : spec.slice(0, at);
+  }
+  if (ecosystem === "go") {
     const at = spec.indexOf("@");
     return at === -1 ? spec : spec.slice(0, at);
   }

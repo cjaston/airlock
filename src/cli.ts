@@ -1,13 +1,19 @@
 import { parseArgs } from "node:util";
+import path from "node:path";
 import type { CommandVerdict, Ecosystem, Verdict } from "./core/types.js";
 import { vetPackage } from "./core/vet.js";
 import { vetCommand } from "./core/vet-command.js";
+import { scanProject, type ScanResult } from "./core/scan.js";
+import { scanSecrets, type SecretScanResult } from "./core/secrets.js";
+import { scanGitDiff, type DiffScanResult } from "./core/diff-guard.js";
 import { runMcpServer } from "./mcp.js";
 import { runClaudeCodeHook } from "./hooks/claude-code.js";
 import { runShim, runGuard } from "./shim.js";
 import { runInit } from "./integrations/init.js";
 import { cacheStats, clearCache } from "./core/cache.js";
 import { initPolicy } from "./core/policy.js";
+
+const ECOSYSTEMS: Ecosystem[] = ["npm", "pypi", "cargo", "rubygems", "go"];
 
 const RESET = "\x1b[0m";
 const RED = "\x1b[41m\x1b[97m\x1b[1m";
@@ -62,6 +68,7 @@ export async function main(argv: string[]): Promise<number> {
       options: {
         ecosystem: { type: "string", short: "e" },
         json: { type: "boolean" },
+        staged: { type: "boolean" },
         help: { type: "boolean", short: "h" },
       },
     });
@@ -84,8 +91,10 @@ export async function main(argv: string[]): Promise<number> {
       return 2;
     }
     const ecosystem = (values.ecosystem as Ecosystem | undefined) ?? "npm";
-    if (ecosystem !== "npm" && ecosystem !== "pypi") {
-      console.error(`unknown ecosystem "${ecosystem}" (expected npm or pypi)`);
+    if (!isEcosystem(ecosystem)) {
+      console.error(
+        `unknown ecosystem "${ecosystem}" (expected ${ECOSYSTEMS.join("|")})`,
+      );
       return 2;
     }
     const verdicts = await Promise.all(
@@ -100,8 +109,68 @@ export async function main(argv: string[]): Promise<number> {
     return verdicts.some((v) => v.decision === "block") ? 1 : 0;
   }
 
+  if (command === "scan") {
+    const root = positionals[1] ?? process.cwd();
+    const result = await scanProject(root);
+    if (values.json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      printScan(result);
+    }
+    return result.verdicts.some(({ verdict }) => verdict.decision === "block")
+      ? 1
+      : 0;
+  }
+
+  if (command === "secrets") {
+    const root = positionals[1] ?? process.cwd();
+    const result = scanSecrets(root);
+    if (values.json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      printSecretScan(result);
+    }
+    return result.findings.length > 0 ? 1 : 0;
+  }
+
+  if (command === "diff") {
+    const root = positionals[1] ?? process.cwd();
+    const result = scanGitDiff(root, { staged: Boolean(values.staged) });
+    if (values.json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      printDiffScan(result);
+    }
+    return result.findings.length > 0 ? 1 : 0;
+  }
+
+  if (command === "audit") {
+    const root = positionals[1] ?? process.cwd();
+    const result = {
+      dependencies: await scanProject(root),
+      secrets: scanSecrets(root),
+      diff: scanGitDiff(root, { staged: Boolean(values.staged) }),
+    };
+    if (values.json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      printAudit(result);
+    }
+    return result.dependencies.verdicts.some(
+      ({ verdict }) => verdict.decision === "block",
+    ) ||
+      result.secrets.findings.length > 0 ||
+      result.diff.findings.length > 0
+      ? 1
+      : 0;
+  }
+
   console.error(`unknown command "${command}". Run "airlock help".`);
   return 2;
+}
+
+function isEcosystem(value: unknown): value is Ecosystem {
+  return typeof value === "string" && ECOSYSTEMS.includes(value as Ecosystem);
 }
 
 async function runVetCommand(commandStr: string): Promise<number> {
@@ -186,16 +255,115 @@ function printCommandVerdict(v: CommandVerdict): void {
   for (const s of v.signals) console.log(`  ${mark(s.level)} ${s.message}`);
 }
 
+function printScan(result: ScanResult): void {
+  console.log(`\n${BOLD}Airlock scan${RESET} ${DIM}${result.root}${RESET}`);
+  if (result.targets.length === 0) {
+    console.log(`  ${mark("allow")} No supported dependency manifests found.`);
+    console.log("");
+    return;
+  }
+  const blocked = result.verdicts.filter((r) => r.verdict.decision === "block");
+  const warned = result.verdicts.filter((r) => r.verdict.decision === "warn");
+  const allowed = result.verdicts.length - blocked.length - warned.length;
+  console.log(
+    `  checked ${result.verdicts.length} dependencies: ${allowed} allow, ${warned.length} warn, ${blocked.length} block`,
+  );
+  for (const { target, verdict } of result.verdicts) {
+    if (verdict.decision === "allow") continue;
+    const rel = path.relative(result.root, target.file) || path.basename(target.file);
+    console.log(
+      `\n${badge(verdict.decision)} ${BOLD}${target.name}${RESET} ${DIM}(${target.ecosystem}, ${rel})${RESET}`,
+    );
+    for (const s of verdict.signals) {
+      if (s.level !== "allow") console.log(`  ${mark(s.level)} ${s.message}`);
+    }
+  }
+  console.log("");
+}
+
+function printSecretScan(result: SecretScanResult): void {
+  console.log(`\n${BOLD}Airlock secrets${RESET} ${DIM}${result.root}${RESET}`);
+  if (result.findings.length === 0) {
+    console.log(`  ${mark("allow")} No high-confidence secrets found.`);
+    console.log("");
+    return;
+  }
+  console.log(`  ${mark("block")} Found ${result.findings.length} high-confidence secret(s).`);
+  for (const finding of result.findings) {
+    const rel = path.relative(result.root, finding.file) || path.basename(finding.file);
+    console.log(
+      `  ${mark("block")} ${finding.label} at ${rel}:${finding.line} (${finding.preview})`,
+    );
+  }
+  console.log("");
+}
+
+function printDiffScan(result: DiffScanResult): void {
+  const scope = result.staged ? "staged git diff" : "git diff";
+  console.log(`\n${BOLD}Airlock diff${RESET} ${DIM}${scope} in ${result.root}${RESET}`);
+  if (result.findings.length === 0) {
+    console.log(`  ${mark("allow")} No test-subversion patterns found.`);
+    console.log("");
+    return;
+  }
+  console.log(`  ${mark("warn")} Found ${result.findings.length} test-change warning(s).`);
+  for (const finding of result.findings) {
+    const loc = finding.line === null ? finding.file : `${finding.file}:${finding.line}`;
+    console.log(`  ${mark("warn")} ${loc} — ${finding.message}`);
+  }
+  console.log("");
+}
+
+function printAudit(result: {
+  dependencies: ScanResult;
+  secrets: SecretScanResult;
+  diff: DiffScanResult;
+}): void {
+  console.log(`\n${BOLD}Airlock audit${RESET} ${DIM}${result.dependencies.root}${RESET}`);
+  const depBlocks = result.dependencies.verdicts.filter(
+    ({ verdict }) => verdict.decision === "block",
+  ).length;
+  const depWarns = result.dependencies.verdicts.filter(
+    ({ verdict }) => verdict.decision === "warn",
+  ).length;
+  console.log(
+    `  dependencies: ${result.dependencies.verdicts.length} checked, ${depWarns} warn, ${depBlocks} block`,
+  );
+  console.log(`  secrets: ${result.secrets.findings.length} finding(s)`);
+  console.log(`  diff: ${result.diff.findings.length} test-change warning(s)`);
+
+  for (const { target, verdict } of result.dependencies.verdicts) {
+    if (verdict.decision === "allow") continue;
+    const rel = path.relative(result.dependencies.root, target.file) || path.basename(target.file);
+    console.log(`  ${mark(verdict.decision)} dependency ${target.name} (${target.ecosystem}, ${rel})`);
+  }
+  for (const finding of result.secrets.findings) {
+    const rel =
+      path.relative(result.secrets.root, finding.file) || path.basename(finding.file);
+    console.log(`  ${mark("block")} secret ${finding.label} at ${rel}:${finding.line}`);
+  }
+  for (const finding of result.diff.findings) {
+    const loc = finding.line === null ? finding.file : `${finding.file}:${finding.line}`;
+    console.log(`  ${mark("warn")} test change ${loc}`);
+  }
+  console.log("");
+}
+
 function printHelp(): void {
   console.log(`airlock — a firewall between AI agents and dangerous actions
 
 usage:
   airlock check <package> [...]      Vet packages before installing
-    -e, --ecosystem <npm|pypi>       Ecosystem (default: npm)
+    -e, --ecosystem <name>           Ecosystem: ${ECOSYSTEMS.join("|")} (default: npm)
     --json                           Machine-readable output
   airlock vet-command "<cmd>"        Vet a full shell command (installs + destructive ops)
+  airlock scan [path]                Vet supported dependency manifests in a repo
+    --json                           Machine-readable output
+  airlock secrets [path]             Scan files for high-confidence leaked secrets
+  airlock diff [path] [--staged]     Scan git diff for suspicious test changes
+  airlock audit [path] [--staged]    Run dependency, secret, and diff guards
   airlock init <agent> [...]         Wire Airlock into an agent:
-                                       claude-code | codex | gemini | cursor | shell | all
+                                       claude-code | codex | gemini | cursor | shell | git | all
   airlock guard <install|uninstall|status|path>
                                      Manage universal PATH shims (npm/pip/npx/uvx/...)
   airlock cache <status|clear>       Inspect or clear registry cache

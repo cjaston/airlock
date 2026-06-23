@@ -1,5 +1,11 @@
 import type { Ecosystem, SimilarityHit } from "./types.js";
-import { POPULAR_NPM, POPULAR_PYPI } from "./data/popular.js";
+import {
+  POPULAR_CARGO,
+  POPULAR_GO,
+  POPULAR_NPM,
+  POPULAR_PYPI,
+  POPULAR_RUBYGEMS,
+} from "./data/popular.js";
 
 // Tokens that are typically appended to a real package name to make a
 // plausible-but-fake one (e.g. "lodash-utils", "requests-helper").
@@ -16,7 +22,7 @@ export function checkSimilarity(
   name: string,
   ecosystem: Ecosystem,
 ): SimilarityHit | null {
-  const popular = ecosystem === "npm" ? POPULAR_NPM : POPULAR_PYPI;
+  const popular = popularFor(ecosystem);
   const norm = normalize(name, ecosystem);
   if (popular.has(norm)) return null; // it IS a known-good package
 
@@ -29,13 +35,30 @@ export function checkSimilarity(
   return null;
 }
 
+function popularFor(ecosystem: Ecosystem): Set<string> {
+  switch (ecosystem) {
+    case "npm":
+      return POPULAR_NPM;
+    case "pypi":
+      return POPULAR_PYPI;
+    case "cargo":
+      return POPULAR_CARGO;
+    case "rubygems":
+      return POPULAR_RUBYGEMS;
+    case "go":
+      return POPULAR_GO;
+  }
+}
+
 function normalize(name: string, ecosystem: Ecosystem): string {
   let n = name.toLowerCase().trim();
   if (ecosystem === "npm" && n.startsWith("@")) {
     const slash = n.indexOf("/");
     if (slash !== -1) n = n.slice(slash + 1);
   }
-  if (ecosystem === "pypi") n = n.replace(/_/g, "-");
+  if (ecosystem === "pypi" || ecosystem === "rubygems" || ecosystem === "cargo") {
+    n = n.replace(/_/g, "-");
+  }
   return n;
 }
 
